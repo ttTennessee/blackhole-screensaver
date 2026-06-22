@@ -173,9 +173,12 @@ is tonemapped on top of the lensed wallpaper sample.
 
 ### Background
 
-One `BitBlt` of the virtual desktop into an sRGB texture per saver
-invocation, read from the daemon's shared memory. No per-frame capture, no
-WGC reentrancy hazards.
+One `BitBlt` of the entire virtual desktop (`SM_X/YVIRTUALSCREEN` origin,
+not `(0, 0)` — secondary monitors can sit in negative coordinates) into
+an sRGB texture per saver invocation, read from the daemon's shared
+memory. No per-frame capture, no WGC reentrancy hazards. If the virtual
+desktop is larger than the GPU's `max_texture_dimension_2d`, the
+snapshot is downscaled on the CPU before upload.
 
 ### Animation
 
@@ -206,16 +209,46 @@ The screen-space swirl is essentially free (a couple of sines per pixel).
 - **Windows only.** The screensaver subsystem and `BitBlt` capture are
   Windows-specific. Cross-platform would need an entirely different shell
   integration.
-- **Single monitor span.** The saver fullscreens on the primary monitor;
-  the daemon captures the full virtual desktop (so the background covers
-  every monitor's pixels). Per-monitor saver windows are intentionally
-  unimplemented — usually not worth the complexity.
+- **Multi-monitor: one canvas across all displays.** The saver window
+  spans the full virtual desktop (every physical screen's pixels in their
+  Windows-arranged positions), and the black hole drifts freely across
+  that whole rectangle. On asymmetric layouts (e.g. 4K + 1080p) the
+  smaller monitor leaves an unrendered "void" in the virtual rect; if the
+  hole wanders into that region it will appear to vanish until it drifts
+  back over a physical display. Per-monitor saver windows are
+  intentionally not implemented.
+- **Mixed-DPI setups.** Captures and rendering happen in physical pixels
+  via per-monitor DPI awareness, so a 4K @ 200% next to a 1080p @ 100%
+  works correctly. If the virtual desktop is wider/taller than
+  `max_texture_dimension_2d` (typically 16384–32768 on modern GPUs) the
+  snapshot is downscaled with a nearest-neighbor filter before upload;
+  the lensing distortion hides the slight loss.
 - **First saver launch after boot may flicker once** while shared memory
   catches up if the daemon is slower to start than the user is to walk
   away from the keyboard.
 - **Snapshot is up to 5 seconds stale.** Frequent enough for "shows your
   desktop"; not real-time. Reducing the capture interval is a one-line
   change in `src/daemon.rs` (`CAPTURE_INTERVAL`).
+
+---
+
+## Troubleshooting
+
+If `.scr` or `blackhole.exe /s` crashes or misbehaves, check the log:
+
+```
+%TEMP%\blackhole-screensaver.log
+```
+
+It contains adapter limits, the virtual-desktop rect, captured snapshot
+sizes, and any panic location + message. The release build runs as a
+Windows-subsystem app (no console), so this file is the only signal you
+get. It rotates automatically once it exceeds 1 MiB.
+
+When the daemon's behavior changes between builds, remember it has to be
+restarted to pick up the new binary — quit it from the tray icon and
+double-click `blackhole.exe` (or invoke the configure dialog) to respawn
+the new version.
 
 ---
 
@@ -231,11 +264,13 @@ src/
 ├── animator.rs          grow-and-reset cycle + Lissajous drift
 ├── config.rs            optional config.toml
 ├── desktop.rs           BitBlt + shared-memory read
+├── desktop_layout.rs    virtual-desktop bounds + DPI awareness
 ├── preview.rs           /p HWND child window reparenting
 ├── daemon.rs            background daemon main loop + tray
 ├── shared_mem.rs        named shared memory layout
 ├── autostart.rs         HKCU\...\Run registry entry
-└── fullscreen_check.rs  foreground-window monitor-bounds test
+├── fullscreen_check.rs  foreground-window monitor-bounds test
+└── logging.rs           file logger + panic hook (%TEMP%\...log)
 ```
 
 ---
