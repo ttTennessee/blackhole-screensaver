@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Stage release artifacts
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          $stage = "BlackholeScreensaver-$version-x86_64-windows"
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item target/x86_64-pc-windows-msvc/release/blackhole.exe "$stage/blackhole.exe"
+          Copy-Item target/x86_64-pc-windows-msvc/release/blackhole.exe "$stage/BlackholeScreensaver.scr"
+          Copy-Item example/config.toml "$stage/config.toml"
+          Copy-Item README.md "$stage/README.md"
+          Copy-Item LICENSE "$stage/LICENSE"
+          Compress-Archive -Path "$stage/*" -DestinationPath "$stage.zip"
+          Get-FileHash "$stage.zip" -Algorithm SHA256 | Format-List | Out-File "$stage.zip.sha256.txt"
+          echo "ARTIFACT=$stage.zip" >> $env:GITHUB_ENV
+          echo "ARTIFACT_SHA=$stage.zip.sha256.txt" >> $env:GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: false
+          files: |
+            ${{ env.ARTIFACT }}
+            ${{ env.ARTIFACT_SHA }}

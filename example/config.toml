@@ -1,0 +1,23 @@
+# Blackhole Screensaver — example configuration
+#
+# Copy to:
+#   Windows : %APPDATA%\BlackholeScreensaver\config.toml
+#   Other   : ~/.config/blackhole-screensaver/config.toml
+#
+# Every field is optional. Missing fields fall back to the defaults shown
+# below. A typo only logs a warning — the screensaver still starts.
+
+# Seconds for the shadow to grow from radius_min to radius_max, then reset.
+cycle_seconds = 300.0
+
+# Smallest / largest shadow radius, as a fraction of screen height.
+radius_min = 0.05
+radius_max = 0.55
+
+# Lissajous drift amplitude in normalized uv units (x, y).
+drift_amp_x = 0.30
+drift_amp_y = 0.20
+
+# Lissajous drift frequencies in Hz (slow values look like orbital wandering).
+drift_speed_x = 0.013
+drift_speed_y = 0.017
