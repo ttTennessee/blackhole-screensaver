@@ -21,13 +21,23 @@ pub fn capture() -> Option<DesktopShot> {
         SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+        GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+        SM_YVIRTUALSCREEN,
     };
 
     unsafe {
         // Best-effort: make sure GetSystemMetrics returns physical pixels.
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
+        // The virtual desktop's top-left is NOT (0,0) when secondary monitors
+        // sit to the left of / above the primary -- in that case the origin
+        // is negative. BitBlt's source coordinates are in screen-DC space,
+        // which uses the same virtual-desktop coordinate system, so we must
+        // pass (vx, vy), not (0, 0). Doing the latter copies a region that
+        // straddles the primary monitor and unmapped void, which is the bug
+        // that showed up as "the 4K monitor on the left is mostly black".
+        let vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        let vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
         let w = GetSystemMetrics(SM_CXVIRTUALSCREEN);
         let h = GetSystemMetrics(SM_CYVIRTUALSCREEN);
         if w <= 0 || h <= 0 {
@@ -52,7 +62,7 @@ pub fn capture() -> Option<DesktopShot> {
         }
         let old = SelectObject(mem_dc, HGDIOBJ(bmp.0));
 
-        let ok = BitBlt(mem_dc, 0, 0, w, h, screen_dc, 0, 0, SRCCOPY).is_ok();
+        let ok = BitBlt(mem_dc, 0, 0, w, h, screen_dc, vx, vy, SRCCOPY).is_ok();
 
         let mut shot: Option<DesktopShot> = None;
         if ok {
