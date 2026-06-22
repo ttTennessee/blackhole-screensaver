@@ -2,6 +2,9 @@
 Cargo.lock.bak
 *.scr
 
+# Large demo media — hosted on GitHub Releases, not in git history.
+/assets/
+
 # Reference material kept locally but not part of this project's history.
 /references/
 

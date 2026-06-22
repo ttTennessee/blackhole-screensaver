@@ -1,5 +1,9 @@
 # blackhole-screensaver
 
+> **Demo GIF — [click to view (44.9 MB)](https://github.com/ttTennessee/blackhole-screensaver/releases/download/v0.1.0/blackhole-scr.gif)**
+> The growth cycle was deliberately sped up for the recording. The file is
+> large (44.9 MB), so it is linked rather than embedded — open it on demand.
+
 A Schwarzschild black-hole screensaver for Windows. Your idle desktop becomes
 the sky around a wandering black hole — real null-geodesic integration bends
 the wallpaper into the photon ring, a Shakura–Sunyaev accretion disk orbits
