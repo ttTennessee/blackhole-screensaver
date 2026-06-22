@@ -11,7 +11,7 @@ a small background daemon that keeps a fresh desktop snapshot in shared
 memory so the saver can show your *real* desktop instead of the black screen
 Windows hands it.
 
-Inspired by [ghostty-blackhole](https://github.com/s13k/ghostty-blackhole)
+Inspired by [ghostty-blackhole](https://github.com/s0xDk/ghostty-blackhole)
 (MIT). The physics derivation and many parameter defaults come from there;
 no code is linked in.
 
