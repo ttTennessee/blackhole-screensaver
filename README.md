@@ -243,5 +243,5 @@ src/
 ## License
 
 [MIT](LICENSE). The physics derivation and many parameter defaults come
-from [ghostty-blackhole](https://github.com/s13k/ghostty-blackhole) (also
+from [ghostty-blackhole](https://github.com/s0xDk/ghostty-blackhole) (also
 MIT); no code from it is linked in.
