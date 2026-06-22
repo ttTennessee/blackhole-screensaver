@@ -11,5 +11,10 @@ Cargo.lock.bak
 *.swp
 Thumbs.db
 .DS_Store
-.claude/
+
 .serena/
+.codegraph/
+
+#Agent
+.claude/
+.cursor/
