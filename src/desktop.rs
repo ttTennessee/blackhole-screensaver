@@ -122,6 +122,7 @@ pub fn capture() -> Option<DesktopShot> {
 }
 
 #[cfg(not(windows))]
+#[allow(dead_code)]
 pub fn read_from_shared_mem() -> Option<DesktopShot> {
     None
 }

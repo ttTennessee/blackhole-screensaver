@@ -56,11 +56,7 @@ impl Config {
     }
 
     fn path() -> Option<PathBuf> {
-        let base = if cfg!(windows) {
-            dirs::config_dir() // %APPDATA%\Roaming on Windows
-        } else {
-            dirs::config_dir()
-        }?;
+        let base = dirs::config_dir()?;
         Some(base.join("BlackholeScreensaver").join("config.toml"))
     }
 }
