@@ -1,0 +1,13 @@
+/target
+Cargo.lock.bak
+*.scr
+
+# Reference material kept locally but not part of this project's history.
+/references/
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
