@@ -50,9 +50,36 @@ impl ApplicationHandler for App {
 
         match self.mode {
             Mode::Saver => {
-                attrs = attrs
-                    .with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)))
-                    .with_visible(true);
+                // Span the entire virtual desktop (all monitors) instead of
+                // relying on Fullscreen::Borderless, which on multi-monitor
+                // setups picks a single display and on some drivers fails
+                // outright. A topmost borderless window sized to the virtual
+                // desktop rect gives us one continuous canvas across all
+                // physical screens.
+                #[cfg(windows)]
+                {
+                    if let Some(vd) = crate::desktop_layout::virtual_desktop() {
+                        log::info!(
+                            "virtual desktop: origin=({}, {}) size={}x{}",
+                            vd.x, vd.y, vd.width, vd.height
+                        );
+                        attrs = attrs
+                            .with_position(winit::dpi::PhysicalPosition::new(vd.x, vd.y))
+                            .with_inner_size(winit::dpi::PhysicalSize::new(vd.width, vd.height))
+                            .with_visible(true);
+                    } else {
+                        log::warn!("virtual_desktop() returned None, falling back to borderless fullscreen");
+                        attrs = attrs
+                            .with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)))
+                            .with_visible(true);
+                    }
+                }
+                #[cfg(not(windows))]
+                {
+                    attrs = attrs
+                        .with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)))
+                        .with_visible(true);
+                }
             }
             Mode::Preview(hwnd) => {
                 // Settings panel preview: we will be reparented under the
@@ -85,10 +112,19 @@ impl ApplicationHandler for App {
             None
         };
 
-        let window = Arc::new(event_loop.create_window(attrs).expect("create window"));
+        let window = match event_loop.create_window(attrs) {
+            Ok(w) => Arc::new(w),
+            Err(e) => {
+                log::error!("create_window failed: {e:?}");
+                event_loop.exit();
+                return;
+            }
+        };
 
         if matches!(self.mode, Mode::Saver) {
             window.set_cursor_visible(false);
+            window.set_window_level(winit::window::WindowLevel::AlwaysOnTop);
+            window.focus_window();
         }
 
         // Preview: reparent under the system-supplied HWND and size to fit it.
@@ -97,8 +133,14 @@ impl ApplicationHandler for App {
             crate::preview::attach_to_parent(&window, parent_hwnd);
         }
 
-        let renderer = pollster::block_on(Renderer::new(window.clone(), shot))
-            .expect("renderer init failed");
+        let renderer = match pollster::block_on(Renderer::new(window.clone(), shot)) {
+            Ok(r) => r,
+            Err(e) => {
+                log::error!("renderer init failed: {e:?}");
+                event_loop.exit();
+                return;
+            }
+        };
 
         self.window = Some(window);
         self.renderer = Some(renderer);

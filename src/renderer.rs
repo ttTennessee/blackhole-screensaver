@@ -50,12 +50,19 @@ impl Renderer {
             .await
             .ok_or_else(|| anyhow!("no suitable GPU adapter"))?;
 
+        let adapter_limits = adapter.limits();
+        log::info!(
+            "adapter limits: max_texture_dimension_2d={}, max_buffer_size={}",
+            adapter_limits.max_texture_dimension_2d,
+            adapter_limits.max_buffer_size
+        );
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("blackhole device"),
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::downlevel_defaults(),
+                    required_limits: adapter_limits.clone(),
                     memory_hints: wgpu::MemoryHints::Performance,
                 },
                 None,
@@ -83,7 +90,8 @@ impl Renderer {
         surface.configure(&device, &config);
 
         let has_background = shot.is_some();
-        let (bg_view, bg_sampler) = build_background_texture(&device, &queue, shot);
+        let (bg_view, bg_sampler) =
+            build_background_texture(&device, &queue, shot, adapter_limits.max_texture_dimension_2d);
 
         let uniforms = Uniforms {
             resolution: [size.width as f32, size.height as f32],
@@ -272,12 +280,27 @@ fn build_background_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     shot: Option<DesktopShot>,
+    max_dim: u32,
 ) -> (wgpu::TextureView, wgpu::Sampler) {
     // Fall back to a tiny 1x1 black texture if capture failed; the shader
     // gates on has_background, so a dummy texture is enough to satisfy the
     // pipeline layout.
     let (w, h, data) = match shot {
-        Some(s) => (s.width, s.height, s.bgra),
+        Some(s) => {
+            if s.width <= max_dim && s.height <= max_dim {
+                (s.width, s.height, s.bgra)
+            } else {
+                let scale = (max_dim as f32 / s.width.max(s.height) as f32).min(1.0);
+                let nw = ((s.width as f32 * scale).floor() as u32).max(1);
+                let nh = ((s.height as f32 * scale).floor() as u32).max(1);
+                log::info!(
+                    "desktop shot {}x{} exceeds GPU max_texture_dimension_2d={}, downscaling to {}x{}",
+                    s.width, s.height, max_dim, nw, nh
+                );
+                let resized = downscale_bgra(&s.bgra, s.width, s.height, nw, nh);
+                (nw, nh, resized)
+            }
+        }
         None => (1, 1, vec![0u8, 0, 0, 255]),
     };
 
@@ -329,4 +352,26 @@ fn build_background_texture(
         ..Default::default()
     });
     (view, sampler)
+}
+
+/// Nearest-neighbor BGRA downscale. Cheap and good enough for a background
+/// that is about to be heavily distorted by a black hole.
+fn downscale_bgra(src: &[u8], sw: u32, sh: u32, dw: u32, dh: u32) -> Vec<u8> {
+    let mut out = vec![0u8; (dw as usize) * (dh as usize) * 4];
+    let sx_ratio = sw as f32 / dw as f32;
+    let sy_ratio = sh as f32 / dh as f32;
+    for y in 0..dh {
+        let sy = ((y as f32 + 0.5) * sy_ratio) as u32;
+        let sy = sy.min(sh - 1);
+        let src_row = (sy as usize) * (sw as usize) * 4;
+        let dst_row = (y as usize) * (dw as usize) * 4;
+        for x in 0..dw {
+            let sx = ((x as f32 + 0.5) * sx_ratio) as u32;
+            let sx = sx.min(sw - 1);
+            let si = src_row + (sx as usize) * 4;
+            let di = dst_row + (x as usize) * 4;
+            out[di..di + 4].copy_from_slice(&src[si..si + 4]);
+        }
+    }
+    out
 }

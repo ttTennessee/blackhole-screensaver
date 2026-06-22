@@ -12,6 +12,8 @@ mod autostart;
 #[cfg(windows)]
 mod daemon;
 #[cfg(windows)]
+mod desktop_layout;
+#[cfg(windows)]
 mod fullscreen_check;
 #[cfg(windows)]
 mod preview;
@@ -21,7 +23,13 @@ mod shared_mem;
 use anyhow::Result;
 use winit::event_loop::EventLoop;
 
+#[cfg(windows)]
+mod logging;
+
 fn main() -> Result<()> {
+    #[cfg(windows)]
+    logging::init();
+    #[cfg(not(windows))]
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let mode = mode::parse_args(std::env::args());
