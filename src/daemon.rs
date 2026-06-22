@@ -54,6 +54,14 @@ fn run_inner() -> Result<()> {
         return Ok(());
     }
 
+    // Must run BEFORE any HWND is created (tray icon below creates one).
+    // Without this the virtual-desktop metrics come back DPI-virtualized,
+    // which on mixed-DPI setups (e.g. 4K @ 200% + 1080p @ 100%) shrinks
+    // SM_CXVIRTUALSCREEN so far that BitBlt only covers the primary
+    // monitor — the symptom the user reported as "4K screen is mostly
+    // black, primary screenshot is in the top-left corner".
+    crate::desktop_layout::ensure_dpi_aware();
+
     let mut shm = SharedMem::create()?;
     let paused = Arc::new(AtomicBool::new(false));
     let quit = Arc::new(AtomicBool::new(false));
@@ -126,6 +134,7 @@ fn run_inner() -> Result<()> {
 
 fn capture_into(shm: &mut SharedMem) -> Result<()> {
     let shot = desktop::capture().ok_or_else(|| anyhow::anyhow!("BitBlt returned nothing"))?;
+    log::info!("daemon captured desktop snapshot {}x{}", shot.width, shot.height);
     let needed = shared_mem::HEADER_SIZE + shot.bgra.len();
     let buf = shm.as_mut_slice();
     if buf.len() < needed {

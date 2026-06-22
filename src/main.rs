@@ -32,6 +32,14 @@ fn main() -> Result<()> {
     #[cfg(not(windows))]
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
+    // Establish per-monitor DPI awareness immediately, before anything in
+    // winit/wgpu/tray can create an HWND. SetProcessDpiAwarenessContext
+    // is one-shot per process and silently fails if called too late, so
+    // doing it here guarantees GetSystemMetrics(SM_C*VIRTUALSCREEN)
+    // returns physical pixels across mixed-DPI multi-monitor setups.
+    #[cfg(windows)]
+    desktop_layout::ensure_dpi_aware();
+
     let mode = mode::parse_args(std::env::args());
     log::info!("starting in mode: {:?}", mode);
 
